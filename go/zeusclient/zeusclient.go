@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/burke/ttyutils"
+	"github.com/burke/zeus/go/client_signals"
 	"github.com/burke/zeus/go/config"
 	"github.com/burke/zeus/go/messages"
 	slog "github.com/burke/zeus/go/shinylog"
@@ -29,6 +30,7 @@ func Run() {
 
 // man signal | grep 'terminate process' | awk '{print $2}' | xargs -I '{}' echo -n "syscall.{}, "
 var terminatingSignals = []os.Signal{syscall.SIGHUP, syscall.SIGINT, syscall.SIGKILL, syscall.SIGPIPE, syscall.SIGALRM, syscall.SIGTERM, syscall.SIGXCPU, syscall.SIGXFSZ, syscall.SIGVTALRM, syscall.SIGPROF, syscall.SIGUSR1, syscall.SIGUSR2}
+var otherHandledSignals = []os.Signal{syscall.SIGWINCH, syscall.SIGCONT}
 
 func doRun() int {
 	if os.Getenv("RAILS_ENV") != "" {
@@ -112,7 +114,8 @@ func doRun() int {
 
 	if isTerminal {
 		c := make(chan os.Signal, 1)
-		handledSignals := append(append(terminatingSignals, syscall.SIGWINCH), syscall.SIGCONT)
+
+		handledSignals := append(terminatingSignals, otherHandledSignals...)
 		signal.Notify(c, handledSignals...)
 		go func() {
 			for sig := range c {
@@ -129,6 +132,8 @@ func doRun() int {
 				}
 			}
 		}()
+
+		client_signals.HandleSignals(commandPid)
 	}
 
 	var exitStatus int = -1
